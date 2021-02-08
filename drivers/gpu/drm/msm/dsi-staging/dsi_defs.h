@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
- * Copyright (C) 2020 XiaoMi, Inc.
+ * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -300,6 +300,7 @@ enum dsi_cmd_set_type {
 	DSI_CMD_SET_POST_CMD_TO_VID_SWITCH,
 	DSI_CMD_SET_VID_TO_CMD_SWITCH,
 	DSI_CMD_SET_POST_VID_TO_CMD_SWITCH,
+	DSI_CMD_SET_PANEL_STATUS_OFFSET,
 	DSI_CMD_SET_PANEL_STATUS,
 	DSI_CMD_SET_LP1,
 	DSI_CMD_SET_LP2,
@@ -364,6 +365,8 @@ enum dsi_cmd_set_type {
 	DSI_CMD_SET_READ_LOCKDOWN_INFO,
 	DSI_CMD_SET_DISP_ONE_PLUSE,
 	DSI_CMD_SET_DISP_FOUR_PLUSE,
+	DSI_CMD_SET_DISP_FLAT_MODE_ON,
+	DSI_CMD_SET_DISP_FLAT_MODE_OFF,
 	DSI_CMD_SET_DISP_DEMURA_LEVEL02,
 	DSI_CMD_SET_DISP_DEMURA_LEVEL08,
 	DSI_CMD_SET_DISP_DEMURA_LEVEL0D,
@@ -371,6 +374,8 @@ enum dsi_cmd_set_type {
 	DSI_CMD_SET_DISP_DC_DEMURA_L2,
 	DSI_CMD_SET_DISP_DC_ON,
 	DSI_CMD_SET_DISP_DC_OFF,
+	DSI_CMD_SET_DISP_BC_120HZ,
+	DSI_CMD_SET_DISP_BC_60HZ,
 	DSI_CMD_SET_MAX
 };
 

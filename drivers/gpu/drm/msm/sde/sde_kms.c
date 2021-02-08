@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2021 XiaoMi, Inc.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
  *
@@ -1051,11 +1052,11 @@ static void sde_kms_commit(struct msm_kms *kms,
 			sde_crtc_commit_kickoff(crtc, old_crtc_state);
 		}
 	}
-
+/*
 	for_each_crtc_in_state(old_state, crtc, old_crtc_state, i) {
 		sde_crtc_fod_ui_ready(crtc, old_crtc_state);
 	}
-
+*/
 	SDE_ATRACE_END("sde_kms_commit");
 }
 
@@ -1175,6 +1176,7 @@ static void sde_kms_complete_commit(struct msm_kms *kms,
 			pr_err("Connector Post kickoff failed rc=%d\n",
 					 rc);
 		}
+		sde_connector_fod_notify(connector);
 	}
 
 	sde_power_resource_enable(&priv->phandle, sde_kms->core_client, false);
