@@ -18,7 +18,7 @@
  *
  *
  * Copyright (c) 2015 Fingerprint Cards AB <tech@fingerprints.com>
- * Copyright (C) 2021 XiaoMi, Inc.
+ * Copyright (C) 2020 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License Version 2
@@ -99,8 +99,6 @@ struct fpc1020_data {
 	int vdd1v2_gpio;
 	int vdd1v8_gpio;
 	int vdd2v8_gpio;
-	bool gpios_requested;
-
 	int nbr_irqs_received;
 	int nbr_irqs_received_counter_start;
 	bool prepared;
@@ -161,13 +159,13 @@ static int hw_reset(struct  fpc1020_data *fpc1020);
 static int request_vreg_gpio(struct fpc1020_data *fpc1020, bool enable)
 {
 
-	int rc=0;
+	int rc;
 	struct device *dev = fpc1020->dev;
 	dev_err(dev, "fpc %s: enter!\n", __func__);
 
 	mutex_lock(&fpc1020->lock);
 
-	if (enable && !fpc1020->gpios_requested) {
+	if (enable) {
 		rc = fpc1020_request_named_gpio(fpc1020, "fpc,gpio_vdd1v2", &fpc1020->vdd1v2_gpio);
 		if (rc) {
 			dev_err(dev, "fpc vdd1v2 gpio request failed\n");
@@ -194,41 +192,25 @@ static int request_vreg_gpio(struct fpc1020_data *fpc1020, bool enable)
 			vreg_conf[2].gpio = fpc1020->vdd2v8_gpio;
 			dev_info(dev, "fpc vdd2v8 gpio applied at  %d\n", fpc1020->vdd2v8_gpio);
 		}
-
-		fpc1020->gpios_requested = true;
 		dev_dbg(dev, "vreg gpio requested successfully!\n");
 		goto exit;
-	} else if (!enable && fpc1020->gpios_requested) {
-release:
-		if (gpio_is_valid(fpc1020->vdd1v2_gpio)) {
-			devm_gpio_free(dev, fpc1020->vdd1v2_gpio);
-			fpc1020->vdd1v2_gpio = -1;
-		}
-
-		if (gpio_is_valid(fpc1020->vdd1v8_gpio)) {
-			devm_gpio_free(dev, fpc1020->vdd1v8_gpio);
-			fpc1020->vdd1v8_gpio = -1;
-		}
-
-		if (gpio_is_valid(fpc1020->vdd2v8_gpio)) {
-			devm_gpio_free(dev, fpc1020->vdd2v8_gpio);
-			fpc1020->vdd2v8_gpio = -1;
-		}
-
-		vreg_conf[0].gpio = 0;
-		vreg_conf[1].gpio = 0;
-		vreg_conf[2].gpio = 0;
-		fpc1020->gpios_requested = false;
 	} else {
-		dev_info(dev, "%s: enable: %d, gpios_requested: %d ???\n",
-				__func__, enable, fpc1020->gpios_requested);
+release: 	if (gpio_is_valid(fpc1020->vdd1v2_gpio))
+				devm_gpio_free(dev, fpc1020->vdd1v2_gpio);
+			if (gpio_is_valid(fpc1020->vdd1v8_gpio))
+				devm_gpio_free(dev, fpc1020->vdd1v8_gpio);
+			if (gpio_is_valid(fpc1020->vdd2v8_gpio))
+				devm_gpio_free(dev, fpc1020->vdd2v8_gpio);
+			vreg_conf[0].gpio = 0;
+			vreg_conf[1].gpio = 0;
+			vreg_conf[2].gpio = 0;
 	}
 
-exit:
-	mutex_unlock(&fpc1020->lock);
-	dev_dbg(dev, "fpc %s: exit!\n", __func__);
-	return rc;
+exit:   mutex_unlock(&fpc1020->lock);
+		dev_dbg(dev, "fpc %s: exit!\n", __func__);
+		return rc;
 }
+
 
 static int vreg_setup(struct fpc1020_data *fpc1020, const char *name,
 		bool enable)
@@ -991,10 +973,6 @@ static int fpc1020_probe(struct platform_device *pdev)
 	}
 
 	fpc1020->dev = dev;
-	fpc1020->vdd1v2_gpio = -1;
-	fpc1020->vdd1v8_gpio = -1;
-	fpc1020->vdd2v8_gpio = -1;
-	fpc1020->gpios_requested = false;
 	platform_set_drvdata(pdev, fpc1020);
 
 	if (!np) {
