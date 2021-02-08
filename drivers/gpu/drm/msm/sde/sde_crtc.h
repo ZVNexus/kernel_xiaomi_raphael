@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2015-2020 The Linux Foundation. All rights reserved.
- * Copyright (C) 2021 XiaoMi, Inc.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
  *
@@ -583,8 +582,8 @@ void sde_crtc_complete_commit(struct drm_crtc *crtc,
  * @crtc: Pointer to drm crtc object
  * @old_state: Pointer to drm crtc old state object
  */
-//void sde_crtc_fod_ui_ready(struct drm_crtc *crtc,
-//		struct drm_crtc_state *old_state);
+void sde_crtc_fod_ui_ready(struct drm_crtc *crtc,
+		struct drm_crtc_state *old_state);
 
 /**
  * sde_crtc_init - create a new crtc object
@@ -871,7 +870,5 @@ int sde_crtc_calc_vpadding_param(struct drm_crtc_state *state,
  */
 int sde_crtc_get_num_datapath(struct drm_crtc *crtc,
 		struct drm_connector *connector);
-
-uint32_t sde_crtc_get_mi_fod_sync_info(struct sde_crtc_state *cstate);
 
 #endif /* _SDE_CRTC_H_ */

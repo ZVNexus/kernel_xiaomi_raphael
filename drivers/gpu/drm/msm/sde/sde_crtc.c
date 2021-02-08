@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2014-2020 The Linux Foundation. All rights reserved.
- * Copyright (C) 2021 XiaoMi, Inc.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
  *
@@ -67,7 +66,6 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <drm/drm_mipi_dsi.h>
-#include "xiaomi_frame_stat.h"
 
 #define SDE_PSTATES_MAX (SDE_STAGE_MAX * 4)
 #define SDE_MULTIRECT_PLANE_MAX (SDE_STAGE_MAX * 2)
@@ -83,8 +81,6 @@ struct sde_crtc_custom_events {
 
 struct drm_crtc *gcrtc;
 bool g_idleflag = true;
-bool idle_status;
-extern struct frame_stat fm_stat;
 
 static int sde_crtc_power_interrupt_handler(struct drm_crtc *crtc_drm,
 	bool en, struct sde_irq_callback *ad_irq);
@@ -2869,13 +2865,6 @@ static void sde_crtc_frame_event_cb(void *data, u32 event)
 	kthread_queue_work(&priv->event_thread[crtc_id].worker, &fevent->work);
 }
 
-static void _sde_crtc_mi_update_state(struct sde_crtc_state *cstate, enum mi_dimlayer_type dimlayer_state)
-{
-	int i = 0;
-	for (i = 0; i < cstate->num_connectors; i++)
-		sde_connector_mi_update_dimlayer_state(cstate->connectors[i], dimlayer_state);
-}
-
 void sde_crtc_prepare_commit(struct drm_crtc *crtc,
 		struct drm_crtc_state *old_state)
 {
@@ -3090,13 +3079,11 @@ static void sde_crtc_frame_event_work(struct kthread_work *work)
 		SDE_ATRACE_END("signal_release_fence");
 	}
 
-	if (fevent->event & SDE_ENCODER_FRAME_EVENT_SIGNAL_RETIRE_FENCE) {
+	if (fevent->event & SDE_ENCODER_FRAME_EVENT_SIGNAL_RETIRE_FENCE)
 		/* this api should be called without spin_lock */
 		_sde_crtc_retire_event(fevent->connector, fevent->ts,
 				(fevent->event & SDE_ENCODER_FRAME_EVENT_ERROR)
 				? SDE_FENCE_SIGNAL_ERROR : SDE_FENCE_SIGNAL);
-		frame_stat_collector(0, RETIRE_FENCE_TS);
-	}
 
 	if (fevent->event & SDE_ENCODER_FRAME_EVENT_PANEL_DEAD)
 		SDE_ERROR("crtc%d ts:%lld received panel dead event\n",
@@ -3152,19 +3139,19 @@ bool get_fod_dimlayer_status(struct drm_connector *connector)
 }
 EXPORT_SYMBOL(get_fod_dimlayer_status);
 
-ssize_t get_fod_ui_status(struct drm_connector *connector)
+bool get_fod_ui_status(struct drm_connector *connector)
 {
 	struct dsi_display *dsi_display = get_primary_display();
 
 	if (!connector || !dsi_display || !dsi_display->panel) {
-			SDE_ERROR("invalid param\n");
-			return false;
+		SDE_ERROR("invalid param\n");
+		return false;
 	}
 
 	return dsi_display->panel->fod_ui_ready;
 }
 EXPORT_SYMBOL(get_fod_ui_status);
-/*
+
 void sde_crtc_fod_ui_ready(struct drm_crtc *crtc,
 		struct drm_crtc_state *old_state)
 {
@@ -3223,7 +3210,6 @@ void sde_crtc_fod_ui_ready(struct drm_crtc *crtc,
 		fod_status_changed = true;
 	}
 }
-*/
 
 /**
  * _sde_crtc_set_input_fence_timeout - update ns version of in fence timeout
@@ -3992,7 +3978,6 @@ static void sde_crtc_atomic_begin(struct drm_crtc *crtc,
 	if (sde_encoder_check_curr_mode(sde_crtc->mixers[0].encoder,
 					MSM_DISPLAY_VIDEO_MODE) &&
 		kthread_cancel_delayed_work_sync(&sde_crtc->idle_notify_work))
-		idle_status = false;
 		SDE_DEBUG("idle notify work cancelled\n");
 
 	/*
@@ -4038,9 +4023,6 @@ static void sde_crtc_atomic_flush(struct drm_crtc *crtc,
 	struct sde_kms *sde_kms;
 	int idle_time = 0;
 	static int idle_time_enable = false;
-	ktime_t get_input_fence_ts;
-	ktime_t now;
-	s64 duration;
 
 	if (!crtc || !crtc->dev || !crtc->dev->dev_private) {
 		SDE_ERROR("invalid crtc\n");
@@ -4106,15 +4088,11 @@ static void sde_crtc_atomic_flush(struct drm_crtc *crtc,
 		sde_plane_restore(plane);
 
 	/* wait for acquire fences before anything else is done */
-	now = ktime_get();
 	_sde_crtc_wait_for_fences(crtc);
-	get_input_fence_ts = ktime_get();
-	duration = ktime_to_ns(ktime_sub(get_input_fence_ts, now));
-	frame_stat_collector(duration, GET_INPUT_FENCE_TS);
 
 	/* schedule the idle notify delayed work */
-	if (g_idleflag && idle_time && sde_encoder_check_curr_mode(sde_crtc->mixers[0].encoder,
-						MSM_DISPLAY_VIDEO_MODE) && idle_time) {
+	if (g_idleflag && sde_encoder_check_curr_mode(sde_crtc->mixers[0].encoder,
+				MSM_DISPLAY_VIDEO_MODE) && idle_time) {
 		kthread_queue_delayed_work(&event_thread->worker,
 					&sde_crtc->idle_notify_work,
 					msecs_to_jiffies(idle_time));
@@ -4536,7 +4514,6 @@ void sde_crtc_commit_kickoff(struct drm_crtc *crtc,
 	bool is_error, reset_req, recovery_events;
 	unsigned long flags;
 	enum sde_crtc_idle_pc_state idle_pc_state;
-	uint32_t fod_sync_info;
 
 	if (!crtc) {
 		SDE_ERROR("invalid argument\n");
@@ -4568,9 +4545,6 @@ void sde_crtc_commit_kickoff(struct drm_crtc *crtc,
 	is_error = _sde_crtc_prepare_for_kickoff_rot(dev, crtc);
 
 	idle_pc_state = sde_crtc_get_property(cstate, CRTC_PROP_IDLE_PC_STATE);
-
-	fod_sync_info = sde_crtc_get_mi_fod_sync_info(cstate);
-	_sde_crtc_mi_update_state(cstate, fod_sync_info);
 
 	list_for_each_entry(encoder, &dev->mode_config.encoder_list, head) {
 		struct sde_encoder_kickoff_params params = { 0 };
@@ -5517,13 +5491,7 @@ static int sde_crtc_fod_atomic_check(struct sde_crtc_state *cstate,
 		return 0;
 	}
 
-	return 0;
-
 	if (!dsi_display->panel->fod_dimlayer_enabled) {
-		cstate->dim_layer_status = false;
-		cstate->fingerprint_dim_layer = NULL;
-		cstate->finger_down = false;
-		pr_debug("Disable dim layer as virtual display detected\n");
 		return 0;
 	}
 
@@ -5538,8 +5506,8 @@ static int sde_crtc_fod_atomic_check(struct sde_crtc_state *cstate,
 
 	if (fod_icon_plane_idx >= 0 || fod_press_plane_idx >= 0) {
 		cstate->dim_layer_status = true;
-		if (dim_layer_zpos > pstates[fod_icon_plane_idx].stage + 1)
-			dim_layer_zpos = pstates[fod_icon_plane_idx].stage + 1;
+		if (dim_layer_zpos > pstates[fod_icon_plane_idx].stage + 2)
+			dim_layer_zpos = pstates[fod_icon_plane_idx].stage + 2;
 
 		for (plane_idx = 0; plane_idx < cnt; plane_idx++) {
 			if (pstates[plane_idx].stage >= dim_layer_zpos)
@@ -5758,15 +5726,9 @@ static int sde_crtc_atomic_check(struct drm_crtc *crtc,
 		}
 	}
 
-	/*
-	 * mi layer check
-	 *	 need execute only sde_enc->disp_info.is_primary is true
-	*/
-
 	rc = sde_crtc_fod_atomic_check(cstate, pstates, cnt);
 	if (rc)
 		goto end;
-
 
 	/* assign mixer stages based on sorted zpos property */
 	if (cnt > 0)
@@ -5988,10 +5950,6 @@ static void sde_crtc_install_properties(struct drm_crtc *crtc,
 		SDE_ERROR("failed to allocate info memory\n");
 		return;
 	}
-
-	/* mi properties */
-	msm_property_install_range(&sde_crtc->property_info, "mi_fod_sync_info",
-		0x0, 0, U32_MAX, 0, CRCT_PROP_MI_FOD_SYNC_INFO);
 
 	/* range properties */
 	msm_property_install_range(&sde_crtc->property_info,
@@ -7157,7 +7115,7 @@ static void __sde_crtc_idle_notify_work(struct kthread_work *work)
 		event.length = sizeof(u32);
 		msm_mode_object_event_notify(&crtc->base, crtc->dev,
 				&event, (u8 *)&ret);
-		idle_status = true;
+
 		SDE_DEBUG("crtc[%d]: idle timeout notified\n", crtc->base.id);
 	}
 }
@@ -7183,15 +7141,10 @@ void sde_crtc_touch_notify(void)
 
 		if (dsi_display && dsi_display->is_prim_display && dsi_display->panel
 			&& !dsi_display->panel->panel_max_frame_rate) {
-			if (dsi_display->panel->dfps_caps.smart_fps_support && fm_stat.enabled) {
-				dsi_display->panel->panel_max_frame_rate = true;
-				calc_fps(0, (int)true);
-			} else {
-				event.type = DRM_EVENT_TOUCH;
-				event.length = sizeof(u32);
-				msm_mode_object_event_notify(&gcrtc->base, gcrtc->dev,
-					&event, (u8 *)&ret);
-			}
+			event.type = DRM_EVENT_TOUCH;
+			event.length = sizeof(u32);
+			msm_mode_object_event_notify(&gcrtc->base, gcrtc->dev,
+				&event, (u8 *)&ret);
 			gcrtc = NULL;
 		}
 	}
@@ -7513,15 +7466,6 @@ static int sde_crtc_tp_event_handler(struct drm_crtc *crtc_drm,
 {
 	return 0;
 }
-
-uint32_t sde_crtc_get_mi_fod_sync_info(struct sde_crtc_state *cstate)
-{
-	if (!cstate)
-		return 0;
-
-	return sde_crtc_get_property(cstate, CRCT_PROP_MI_FOD_SYNC_INFO);
-}
-
 /**
  * sde_crtc_update_cont_splash_settings - update mixer settings
  *	and initial clk during device bootup for cont_splash use case

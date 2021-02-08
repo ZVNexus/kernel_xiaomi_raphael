@@ -1,5 +1,5 @@
 /* Copyright (c) 2015-2020, The Linux Foundation. All rights reserved.
- * Copyright (C) 2021 XiaoMi, Inc.
+ * Copyright (C) 2020 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -138,7 +138,6 @@ static int sde_hw_intf_avr_setup(struct sde_hw_intf *ctx,
 	u32 vsync_period_slow;
 	u32 avr_vtotal;
 	u32 add_porches = 0;
-	pr_debug("[%s] the qsync min fps is %d, current fps is %d",__func__, avr_params->min_fps, avr_params->default_fps);
 	if (!ctx || !params || !avr_params) {
 		SDE_ERROR("invalid input parameter(s)\n");
 		return -EINVAL;
